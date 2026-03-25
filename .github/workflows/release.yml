@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.0.0)"
+        required: true
+
+jobs:
+  # ── Build all platforms ──────────────────────────────────────────────────
+
+  build-windows:
+    uses: ./.github/workflows/windows.yml
+    permissions:
+      contents: read
+
+  build-android:
+    uses: ./.github/workflows/android.yml
+    permissions:
+      contents: read
+
+  # ── Publish GitHub Release ───────────────────────────────────────────────
+
+  release:
+    name: Publish Release
+    needs: [build-windows, build-android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: SchoolWater-Windows
+          path: dist/windows
+
+      - name: Download Android artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: SchoolWater-Android
+          path: dist/android
+
+      - name: Determine release tag
+        id: tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: "🌸 School Water ${{ steps.tag.outputs.tag }}"
+          body: |
+            ## 🌸 校园饮水机控制器 ${{ steps.tag.outputs.tag }}
+
+            ### 下载
+
+            | 平台 | 文件 |
+            |------|------|
+            | 🪟 Windows | `SchoolWater.exe` |
+            | 🤖 Android | `SchoolWater-debug.apk` |
+            | 🌐 Web | 使用 Docker 自行部署，详见 README |
+
+            ### 说明
+
+            - **Windows**：直接运行 `SchoolWater.exe`，需要 Windows 10+ 并开启蓝牙
+            - **Android**：安装 APK，需要授予蓝牙和位置权限  
+            - **Web**：需要支持 Web Bluetooth 的浏览器（Chrome / Edge）
+            - 新固件的密钥派生功能需要 `deputy.wasm`，详见 README
+
+            ♡ kawaii water control ♡
+          files: |
+            dist/windows/SchoolWater.exe
+            dist/android/*.apk
+          draft: false
+          prerelease: false
