@@ -53,13 +53,31 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildozer-
 
+      - name: Install Android SDK command-line tools
+        run: |
+          SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
+          mkdir -p "$SDK_DIR/cmdline-tools"
+          # Download the latest command-line tools
+          curl -sSL "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" \
+            -o /tmp/cmdline-tools.zip
+          unzip -q /tmp/cmdline-tools.zip -d /tmp/cmdline-tools-extracted
+          # Install under cmdline-tools/latest (required layout for sdkmanager self-update)
+          mv /tmp/cmdline-tools-extracted/cmdline-tools "$SDK_DIR/cmdline-tools/latest"
+          # Create legacy tools/ symlink so buildozer finds sdkmanager at tools/bin/sdkmanager
+          ln -sfn "$SDK_DIR/cmdline-tools/latest" "$SDK_DIR/tools"
+
       - name: Accept Android SDK licenses
         run: |
-          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
-          echo -e "\n8933bad161af4178b1185d1a37fbf41ea5269c55" \
-            > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" \
-            > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
+          SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
+          SDKMANAGER="$SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
+          # Accept all licenses via stdin
+          yes | "$SDKMANAGER" --sdk_root="$SDK_DIR" --licenses || true
+          # Also write license hashes directly for offline / cached runs
+          mkdir -p "$SDK_DIR/licenses"
+          printf '\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n' \
+            > "$SDK_DIR/licenses/android-sdk-license"
+          printf '\n84831b9409646a918e30573bab4c9c91346d8abd\n' \
+            > "$SDK_DIR/licenses/android-sdk-preview-license"
 
       - name: Build APK
         working-directory: android
