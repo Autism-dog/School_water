@@ -76,8 +76,6 @@ jobs:
         run: |
           SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
           SDKMANAGER="$SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
-          # Accept all licenses via stdin
-          yes | "$SDKMANAGER" --sdk_root="$SDK_DIR" --licenses || true
           # Also write license hashes directly for offline / cached runs.
           # First hash: standard SDK license; second hash: newer SDK versions.
           mkdir -p "$SDK_DIR/licenses"
@@ -85,6 +83,18 @@ jobs:
             > "$SDK_DIR/licenses/android-sdk-license"
           printf '\n84831b9409646a918e30573bab4c9c91346d8abd\n' \
             > "$SDK_DIR/licenses/android-sdk-preview-license"
+          # Accept all licenses via stdin
+          yes | "$SDKMANAGER" --sdk_root="$SDK_DIR" --licenses || true
+
+      - name: Install required Android SDK packages
+        run: |
+          SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
+          SDKMANAGER="$SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
+          # Pre-install required API/build-tools so buildozer doesn't fail on missing API 34.
+          yes | "$SDKMANAGER" --sdk_root="$SDK_DIR" \
+            "platform-tools" \
+            "platforms;android-34" \
+            "build-tools;34.0.0"
 
       - name: Build APK
         working-directory: android
