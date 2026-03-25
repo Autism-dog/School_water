@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>💧 校园饮水机控制器</title>
+  <style>
+    /* ===== 少女粉色主题 ===== */
+    :root {
+      --pink-deep:   #e75480;
+      --pink-main:   #f48fb1;
+      --pink-light:  #fce4ec;
+      --pink-pale:   #fff0f5;
+      --pink-accent: #ff80ab;
+      --white:       #ffffff;
+      --gray-soft:   #f8f8f8;
+      --text-dark:   #5a3a4a;
+      --text-mid:    #9e6b7e;
+      --shadow:      rgba(231, 84, 128, 0.18);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(135deg, #fce4ec 0%, #f8bbd9 50%, #e1bee7 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* ── 浮动樱花装饰 ── */
+    .petals { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 0; }
+    .petal {
+      position: absolute;
+      top: -40px;
+      font-size: 1.4rem;
+      animation: fall linear infinite;
+      opacity: 0.7;
+    }
+    @keyframes fall {
+      0%   { transform: translateY(0)   rotate(0deg);   opacity: 0.8; }
+      100% { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+    }
+
+    /* ── 主卡片 ── */
+    .card {
+      position: relative;
+      z-index: 1;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(12px);
+      border-radius: 2rem;
+      padding: 2.5rem 2.8rem;
+      max-width: 420px;
+      width: 92%;
+      box-shadow: 0 8px 40px var(--shadow);
+      text-align: center;
+    }
+
+    .logo { font-size: 3.5rem; margin-bottom: 0.3rem; }
+
+    h1 {
+      font-size: 1.55rem;
+      color: var(--pink-deep);
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+      letter-spacing: 0.04em;
+    }
+
+    .subtitle {
+      color: var(--text-mid);
+      font-size: 0.88rem;
+      margin-bottom: 1.8rem;
+    }
+
+    /* ── 设备名 ── */
+    #device-name {
+      display: inline-block;
+      background: var(--pink-light);
+      color: var(--pink-deep);
+      border-radius: 999px;
+      padding: 0.3rem 1rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 1.6rem;
+    }
+
+    /* ── 主按钮 ── */
+    #main-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: linear-gradient(135deg, var(--pink-deep), var(--pink-accent));
+      color: var(--white);
+      border: none;
+      border-radius: 999px;
+      padding: 0.85rem 2.4rem;
+      font-size: 1.15rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 20px var(--shadow);
+      transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+      letter-spacing: 0.05em;
+    }
+    #main-button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px var(--shadow);
+    }
+    #main-button:active:not(:disabled) { transform: translateY(1px); }
+    #main-button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    #main-button.active {
+      background: linear-gradient(135deg, #ff5c8a, var(--pink-deep));
+    }
+
+    /* ── 状态指示灯 ── */
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-top: 1.4rem;
+      font-size: 0.85rem;
+      color: var(--text-mid);
+    }
+    .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #ccc;
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .dot.active  { background: #66bb6a; box-shadow: 0 0 6px #66bb6a; }
+    .dot.pending { background: var(--pink-accent); animation: pulse 1s infinite; }
+    @keyframes pulse { 50% { opacity: 0.4; } }
+
+    /* ── 关于按钮 ── */
+    .about-link {
+      display: block;
+      margin-top: 1.8rem;
+      color: var(--text-mid);
+      font-size: 0.82rem;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .about-link:hover { color: var(--pink-deep); }
+
+    /* ── 错误对话框 ── */
+    dialog {
+      border: none;
+      border-radius: 1.5rem;
+      padding: 2rem 2.2rem;
+      max-width: 360px;
+      width: 90%;
+      box-shadow: 0 8px 40px var(--shadow);
+      text-align: center;
+    }
+    dialog::backdrop { background: rgba(90, 58, 74, 0.35); }
+    dialog h2 { color: var(--pink-deep); font-size: 1.2rem; margin-bottom: 0.8rem; }
+    #dialog-content { color: var(--text-dark); font-size: 0.93rem; line-height: 1.6; }
+    #dialog-debug-container {
+      display: none;
+      margin-top: 1rem;
+      background: var(--gray-soft);
+      border-radius: 0.8rem;
+      padding: 0.7rem 1rem;
+      text-align: left;
+      font-size: 0.78rem;
+      color: var(--text-mid);
+      max-height: 120px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .dialog-close-btn {
+      margin-top: 1.2rem;
+      background: var(--pink-main);
+      color: var(--white);
+      border: none;
+      border-radius: 999px;
+      padding: 0.6rem 2rem;
+      font-size: 0.95rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .dialog-close-btn:hover { background: var(--pink-deep); }
+
+    /* ── 关于对话框 ── */
+    #about-dialog { max-width: 380px; }
+    #about-dialog h2 { margin-bottom: 0.6rem; }
+    .about-body { font-size: 0.88rem; color: var(--text-dark); line-height: 1.7; }
+    .about-body a { color: var(--pink-deep); }
+  </style>
+</head>
+<body>
+
+<!-- 浮动樱花 -->
+<div class="petals" id="petals"></div>
+
+<div class="card">
+  <div class="logo">🌸💧🌸</div>
+  <h1>校园饮水机控制器</h1>
+  <p class="subtitle">kawaii water control ♡</p>
+
+  <div id="device-name">未连接</div>
+  <br />
+
+  <button id="main-button" onclick="handleButtonClick()">开启</button>
+
+  <div class="status-row">
+    <div class="dot" id="status-dot"></div>
+    <span id="status-text">等待连接…</span>
+  </div>
+
+  <a class="about-link" onclick="document.getElementById('about-dialog').showModal()">
+    ✨ 关于 / About
+  </a>
+</div>
+
+<!-- 错误对话框 -->
+<dialog id="error-dialog">
+  <h2>🚫 出错了</h2>
+  <p id="dialog-content"></p>
+  <pre id="dialog-debug-container" id="dialog-debug-container"></pre>
+  <button class="dialog-close-btn" onclick="document.getElementById('error-dialog').close()">知道了 ♡</button>
+</dialog>
+
+<!-- 关于对话框 -->
+<dialog id="about-dialog">
+  <h2>🌸 关于</h2>
+  <div class="about-body">
+    <p>校园饮水机蓝牙控制器</p>
+    <p>基于 <a href="https://github.com/celesWuff/waterctl" target="_blank">celesWuff/waterctl</a> 协议</p>
+    <p>需要支持 <strong>Web Bluetooth</strong> 的浏览器<br/>（Chrome / Edge，PC 或 Android）</p>
+    <p style="margin-top:0.8rem">♡ 少女风格主题 ♡</p>
+  </div>
+  <button class="dialog-close-btn" onclick="document.getElementById('about-dialog').close()">关闭 ♡</button>
+</dialog>
+
+<script>
+/* ============================================================
+   Web Bluetooth protocol — ported from celesWuff/waterctl 2.x
+   ============================================================ */
+
+// ── 协议 UUIDs ──
+const SERVICE_UUID   = 0xF1F0;
+const TXD_UUID       = 0xF1F1;   // write (no response)
+const RXD_UUID       = 0xF1F2;   // notify
+
+// ── 静态 payloads ──
+const START_PROLOGUE   = new Uint8Array([0xFE,0xFE,0x09,0xB0,0x01,0x01,0x00,0x00]);
+const END_PROLOGUE     = new Uint8Array([0xFE,0xFE,0x09,0xB3,0x00,0x00]);
+const END_EPILOGUE     = new Uint8Array([0xFE,0xFE,0x09,0xB4,0x00,0x00]);
+const OFFLINEBOMB_FIX  = new Uint8Array([0xFE,0xFE,0x09,0xBC,0x00,0x00]);
+const BA_ACK           = new Uint8Array([0xFE,0xFE,0x09,0xBA,0x00,0x00]);
+
+// ── CRC-16/ChangGong ──
+function crc16ChangGong(str) {
+  let crc = 0x1017;
+  for (let i = 0; i < str.length; i++) {
+    crc ^= str.charCodeAt(i);
+    for (let j = 0; j < 8; j++) {
+      crc = (crc & 1) ? (crc >>> 1) ^ 0xA001 : crc >>> 1;
+    }
+  }
+  return crc;
+}
+
+// ── CRC-16/CGAEAF ──
+function crc16CGAEAF(arr) {
+  let crc = 0x6A1F;
+  for (const b of arr) {
+    crc ^= b;
+    for (let j = 0; j < 8; j++) {
+      crc = (crc & 1) ? (crc >>> 1) ^ 0xA001 : crc >>> 1;
+    }
+  }
+  return (crc ^ 0x75) & 0xFF;
+}
+
+// ── decAsHex ──
+function decAsHex(n) {
+  return n <= 0 ? 0 : (n % 10) | (decAsHex(Math.floor(n / 10)) << 4);
+}
+
+// ── 随机用户 ID ──
+function makeRandomUserId() {
+  const id = Math.floor(Math.random() * 9999) + 1;
+  return new Uint8Array([id >> 8, id & 0xFF].map(decAsHex));
+}
+
+// ── 日期时间数组（上海时区）──
+function makeDatetimeArray() {
+  const now = new Date();
+  const sh = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+  const parts = [sh.getFullYear() % 100, sh.getMonth() + 1, sh.getDate(),
+                 sh.getHours(), sh.getMinutes(), sh.getSeconds()];
+  return new Uint8Array(parts.map(decAsHex));
+}
+
+// ── deputy.wasm 密钥计算 ──
+let _wasmExports = null;
+async function loadDeputyWasm() {
+  if (_wasmExports) return _wasmExports;
+  // Attempt to fetch deputy.wasm from the server (place it in /static/deputy.wasm)
+  try {
+    const resp = await fetch('/static/deputy.wasm');
+    if (!resp.ok) throw new Error('deputy.wasm not found');
+    const buf = await resp.arrayBuffer();
+    const mod = await WebAssembly.instantiate(buf);
+    _wasmExports = mod.instance.exports;
+    return _wasmExports;
+  } catch (e) {
+    throw new Error('无法加载 deputy.wasm，请确认文件已放置在 /static/ 目录下。');
+  }
+}
+
+async function makeUnlockKey(data) {
+  const wasm = await loadDeputyWasm();
+  wasm.makeKey(...data);
+  const mem = new Uint32Array(wasm.memory.buffer);
+  const key = mem[524];
+  return new Uint8Array([(key>>>24)&0xFF,(key>>>16)&0xFF,(key>>>8)&0xFF,key&0xFF]);
+}
+
+async function makeUnlockResponse(unlockRequest, deviceName) {
+  const unknownByte  = unlockRequest[5];
+  const nonceBytes   = unlockRequest.slice(6, 8);
+  const mac          = unlockRequest.slice(8, 10);
+
+  const nonce = (nonceBytes[0] << 8) | nonceBytes[1];
+  const newNonce = nonce + 1;
+  const newNonceBytes = nonce === 0xFFFF
+    ? new Uint8Array([0x01, 0x00])
+    : new Uint8Array([(newNonce >> 8) & 0xFF, newNonce & 0xFF]);
+
+  const rawKey = await makeUnlockKey(new Uint8Array([...nonceBytes, ...mac]));
+  const mask = deviceName.slice(-4).split('').map(c => c.charCodeAt(0) - 0x30);
+  const key  = rawKey.map((x, i) => x ^ mask[i]);
+
+  const checksumInput = new Uint8Array([
+    unknownByte, ...newNonceBytes, ...key,
+    0xFE, 0x87, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+  ]);
+  const checksum = crc16CGAEAF(checksumInput);
+  return new Uint8Array([0xFE, 0xFE, 0x09, 0xAF, checksum, ...checksumInput]);
+}
+
+function makeStartEpilogue(deviceName, isKeyAuthPresent = false) {
+  const checksum = crc16ChangGong(deviceName.slice(-5));
+  const mn = isKeyAuthPresent ? 0x0B : 0xFF;
+  const ri = makeRandomUserId();
+  const dt = makeDatetimeArray();
+  return new Uint8Array([
+    0xFE, 0xFE, 0x09, 0xB2,
+    0x01, checksum & 0xFF, checksum >> 8, mn,
+    0x00, ...ri, ...dt,
+    0x0F, 0x27, 0x00
+  ]);
+}
+
+// ── 状态管理 ──
+let bluetoothDevice = null;
+let txdChar = null;
+let rxdChar = null;
+let isStarted = false;
+let pendingEpilogueTimer = null;
+let pendingTimeoutTimer  = null;
+
+function updateUi(stage) {
+  const btn  = document.getElementById('main-button');
+  const name = document.getElementById('device-name');
+  const dot  = document.getElementById('status-dot');
+  const txt  = document.getElementById('status-text');
+
+  dot.className = 'dot';
+  if (stage === 'pending') {
+    btn.textContent = '请稍候…';
+    btn.disabled = true;
+    btn.classList.remove('active');
+    name.textContent = '已连接：' + (bluetoothDevice?.name ?? '');
+    dot.classList.add('pending');
+    txt.textContent = '正在握手…';
+  } else if (stage === 'active') {
+    btn.textContent = '⏹ 结束用水';
+    btn.disabled = false;
+    btn.classList.add('active');
+    dot.classList.add('active');
+    txt.textContent = '用水中 ♡';
+  } else {
+    btn.textContent = '▶ 开启用水';
+    btn.disabled = false;
+    btn.classList.remove('active');
+    name.textContent = '未连接';
+    txt.textContent = '等待连接…';
+  }
+}
+
+async function txdWrite(data) {
+  await txdChar.writeValue(data);
+}
+
+function armTimeout() {
+  if (!pendingTimeoutTimer) {
+    pendingTimeoutTimer = setTimeout(() => {
+      handleError('WATERCTL INTERNAL Operation timed out');
+    }, 15000);
+  }
+}
+
+function clearTimers() {
+  clearTimeout(pendingEpilogueTimer);
+  clearTimeout(pendingTimeoutTimer);
+  pendingEpilogueTimer = null;
+  pendingTimeoutTimer  = null;
+}
+
+async function handleError(error) {
+  clearTimers();
+  const msg = String(error);
+  let content = msg;
+  let isFatal = true;
+
+  if (/Unknown RXD data/.test(msg)) {
+    content = '接收到未知数据，可能不影响使用。';
+    isFatal = false;
+  } else if (/Refused|Bad key/.test(msg)) {
+    content = '水控器拒绝启动。请勿重试，多次失败可能导致设备锁定约 1 小时。';
+    isFatal = true;
+  } else if (/Operation timed out/.test(msg)) {
+    content = '等待超时，请重试。';
+    isFatal = false;
+  } else if (/User cancelled|^2$/.test(msg)) {
+    return; // user dismissed the picker
+  } else if (/No Services matching UUID/.test(msg)) {
+    content = '不支持的设备型号。';
+    isFatal = true;
+  } else if (/User denied|not supported|Bluetooth adapter/.test(msg)) {
+    content = '蓝牙不可用或权限未开启。请检查浏览器设置。';
+    isFatal = true;
+  } else if (/NetworkError|GATT operation failed/.test(msg)) {
+    content = '连接不稳定，请重试。';
+    isFatal = true;
+  }
+
+  document.getElementById('dialog-content').textContent = content;
+  document.getElementById('error-dialog').showModal();
+
+  if (isFatal) await disconnect();
+}
+
+async function disconnect() {
+  clearTimers();
+  isStarted = false;
+  if (bluetoothDevice?.gatt?.connected) bluetoothDevice.gatt.disconnect();
+  updateUi('standby');
+}
+
+async function handleRxd(event) {
+  const raw = new Uint8Array(event.target.value.buffer);
+
+  // AT+STAS? noise — discard
+  if (raw[0] === 0x41 && raw[1] === 0x54 && raw[2] === 0x2B) return;
+
+  let p = raw;
+  if (p[0] !== 0xFD && p[0] !== 0x09) { handleError('WATERCTL INTERNAL Unknown RXD data'); return; }
+  if (p[1] === 0x09) p = new Uint8Array([0xFD, ...p]);
+  if (p[0] === 0x09) p = new Uint8Array([0xFD, 0xFD, ...p]);
+  if (p.length < 4) return;
+
+  const dType = p[3];
+  try {
+    switch (dType) {
+      case 0xB0: case 0xB1:
+        clearTimeout(pendingEpilogueTimer);
+        pendingEpilogueTimer = setTimeout(async () => {
+          await txdWrite(makeStartEpilogue(bluetoothDevice.name));
+        }, 500);
+        break;
+      case 0xAE:
+        clearTimeout(pendingEpilogueTimer);
+        await txdWrite(await makeUnlockResponse(p, bluetoothDevice.name));
+        break;
+      case 0xAF:
+        switch (p[5]) {
+          case 0x55: await txdWrite(makeStartEpilogue(bluetoothDevice.name, true)); break;
+          case 0x01: case 0x02: case 0x04: throw new Error('WATERCTL INTERNAL Bad key');
+          default:
+            await txdWrite(makeStartEpilogue(bluetoothDevice.name, true));
+            throw new Error('WATERCTL INTERNAL Unknown RXD data');
+        }
+        break;
+      case 0xB2:
+        clearTimers();
+        isStarted = true;
+        updateUi('active');
+        break;
+      case 0xB3:
+        await txdWrite(END_EPILOGUE);
+        await disconnect();
+        break;
+      case 0xAA: case 0xB5: case 0xB8:
+        break; // telemetry — ignore
+      case 0xBA:
+        await txdWrite(BA_ACK);
+        break;
+      case 0xBC:
+        await txdWrite(OFFLINEBOMB_FIX);
+        break;
+      case 0xC8:
+        throw new Error('WATERCTL INTERNAL Refused');
+      default:
+        throw new Error('WATERCTL INTERNAL Unknown RXD data');
+    }
+  } catch (e) {
+    await handleError(e);
+  }
+}
+
+async function start() {
+  try {
+    bluetoothDevice = await navigator.bluetooth.requestDevice({
+      filters: Array.from('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
+                    .map(c => ({ namePrefix: c })),
+      optionalServices: [/Bluefy/.test(navigator.userAgent) ? 'generic_access' : SERVICE_UUID],
+    });
+
+    updateUi('pending');
+
+    const server  = await bluetoothDevice.gatt.connect();
+    const service = await server.getPrimaryService(SERVICE_UUID);
+    txdChar = await service.getCharacteristic(TXD_UUID);
+    rxdChar = await service.getCharacteristic(RXD_UUID);
+
+    await rxdChar.startNotifications();
+    rxdChar.addEventListener('characteristicvaluechanged', handleRxd);
+
+    await txdWrite(START_PROLOGUE);
+    armTimeout();
+  } catch (e) {
+    await handleError(e);
+  }
+}
+
+async function end() {
+  try {
+    await txdWrite(END_PROLOGUE);
+    armTimeout();
+  } catch (e) {
+    await handleError(e);
+  }
+}
+
+function handleButtonClick() {
+  isStarted ? end() : start();
+}
+
+// ── 生成浮落樱花 ──
+(function spawnPetals() {
+  const container = document.getElementById('petals');
+  const emojis = ['🌸','🌺','💮','🌷','🌼','✿'];
+  for (let i = 0; i < 18; i++) {
+    const el = document.createElement('div');
+    el.className = 'petal';
+    el.textContent = emojis[i % emojis.length];
+    el.style.left = Math.random() * 100 + 'vw';
+    el.style.animationDuration = (8 + Math.random() * 10) + 's';
+    el.style.animationDelay    = (Math.random() * 12) + 's';
+    el.style.fontSize          = (1 + Math.random() * 1.2) + 'rem';
+    container.appendChild(el);
+  }
+})();
+</script>
+</body>
+</html>

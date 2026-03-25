@@ -1,0 +1,5 @@
+PyQt6>=6.7.0
+bleak>=0.22.0
+pytz>=2024.1
+wasmtime>=20.0.0
+pyinstaller>=6.6.0
