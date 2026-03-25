@@ -64,7 +64,8 @@ jobs:
           # Install under cmdline-tools/latest (required layout for sdkmanager self-update)
           mv /tmp/cmdline-tools-extracted/cmdline-tools "$SDK_DIR/cmdline-tools/latest"
           # Create legacy tools/ symlink so buildozer finds sdkmanager at tools/bin/sdkmanager
-          ln -sfn "$SDK_DIR/cmdline-tools/latest" "$SDK_DIR/tools"
+          # Use a relative target so the symlink works regardless of absolute path changes
+          ln -sfn cmdline-tools/latest "$SDK_DIR/tools"
 
       - name: Accept Android SDK licenses
         run: |
@@ -72,7 +73,8 @@ jobs:
           SDKMANAGER="$SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
           # Accept all licenses via stdin
           yes | "$SDKMANAGER" --sdk_root="$SDK_DIR" --licenses || true
-          # Also write license hashes directly for offline / cached runs
+          # Also write license hashes directly for offline / cached runs.
+          # First hash: standard SDK license; second hash: newer SDK versions.
           mkdir -p "$SDK_DIR/licenses"
           printf '\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n' \
             > "$SDK_DIR/licenses/android-sdk-license"
