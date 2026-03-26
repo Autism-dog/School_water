@@ -13,8 +13,10 @@ import asyncio
 import threading
 import random
 import struct
+import os
 from datetime import datetime
 from functools import partial
+from typing import Optional
 
 import pytz
 from kivy.app import App
@@ -27,6 +29,21 @@ from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.widget import Widget
+
+
+def _pick_android_cjk_font() -> Optional[str]:
+    candidates = (
+        "/system/fonts/NotoSansCJK-Regular.ttc",
+        "/system/fonts/NotoSansSC-Regular.otf",
+        "/system/fonts/DroidSansFallback.ttf",
+    )
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return None
+
+
+APP_FONT = _pick_android_cjk_font() or "Roboto"
 
 # ── Colour palette ──
 PINK_DEEP   = (0.906, 0.329, 0.502, 1)
@@ -100,6 +117,8 @@ class AndroidBLE:
         self._on_disconnected = on_disconnected
         self._on_error = on_error
         self._gatt = None
+        self._scanner = None
+        self._scan_callback = None
         self._device_name = ""
         self._txd_char = None
 
@@ -115,6 +134,7 @@ class AndroidBLE:
                 return
 
             scanner = adapter.getBluetoothLeScanner()
+            self._scanner = scanner
 
             class ScanCallback(PythonJavaClass):
                 __javainterfaces__ = ["android/bluetooth/le/ScanCallback"]
@@ -193,9 +213,9 @@ class AndroidBLE:
 
                 @java_method(
                     "(Landroid/bluetooth/BluetoothGatt;"
-                    "Landroid/bluetooth/BluetoothGattCharacteristic;I)V"
+                    "Landroid/bluetooth/BluetoothGattCharacteristic;)V"
                 )
-                def onCharacteristicChanged(self, gatt, characteristic, _value):
+                def onCharacteristicChanged(self, gatt, characteristic):
                     data = bytes(characteristic.getValue())
                     self._outer._on_data(data)
 
@@ -226,6 +246,16 @@ class AndroidBLE:
             except Exception:
                 pass
             self._gatt = None
+
+    def stop_scan(self) -> None:
+        if self._scanner is None or self._scan_callback is None:
+            return
+        try:
+            self._scanner.stopScan(self._scan_callback)
+        except Exception:
+            pass
+        self._scanner = None
+        self._scan_callback = None
 
     @property
     def device_name(self) -> str:
@@ -350,6 +380,7 @@ class RoundedButton(Button):
         self.color              = WHITE
         self.font_size          = "18sp"
         self.bold               = True
+        self.font_name = APP_FONT
         self._bg_color          = PINK_DEEP
         with self.canvas.before:
             self._color_instr = Color(*PINK_DEEP)
@@ -368,6 +399,7 @@ class WaterApp(App):
 
     def build(self):
         Window.clearcolor = PINK_PALE
+        self._ensure_android_permissions()
 
         self._ble = None
         self._protocol = None
@@ -381,6 +413,7 @@ class WaterApp(App):
             font_size="22sp",
             bold=True,
             color=PINK_DEEP,
+            font_name=APP_FONT,
             size_hint_y=None,
             height=60,
         )
@@ -390,6 +423,7 @@ class WaterApp(App):
             text="kawaii water control ♡",
             font_size="13sp",
             color=PINK_MAIN,
+            font_name=APP_FONT,
             size_hint_y=None,
             height=28,
         )
@@ -402,6 +436,7 @@ class WaterApp(App):
             text="未连接",
             font_size="14sp",
             color=TEXT_DARK,
+            font_name=APP_FONT,
             size_hint_y=None,
             height=32,
         )
@@ -423,6 +458,7 @@ class WaterApp(App):
             text="等待连接…",
             font_size="13sp",
             color=PINK_MAIN,
+            font_name=APP_FONT,
             size_hint_y=None,
             height=32,
         )
@@ -458,6 +494,8 @@ class WaterApp(App):
 
     @mainthread
     def _show_device_picker(self, *_):
+        if self._ble:
+            self._ble.stop_scan()
         if not self._found_items:
             self._show_error("未发现蓝牙设备，请确认已开启蓝牙并靠近设备。")
             return
@@ -476,6 +514,7 @@ class WaterApp(App):
                 height=46,
                 background_color=(*PINK_MAIN[:3], 1),
                 color=WHITE,
+                font_name=APP_FONT,
             )
 
             def make_handler(k):
@@ -489,6 +528,7 @@ class WaterApp(App):
 
         scroll.add_widget(inner)
         content.add_widget(Label(text="选择设备", font_size="15sp", color=PINK_DEEP,
+                                 font_name=APP_FONT,
                                  size_hint_y=None, height=36))
         content.add_widget(scroll)
 
@@ -562,11 +602,34 @@ class WaterApp(App):
     def _show_error(self, msg: str):
         popup = Popup(
             title="🚫 出错了",
-            content=Label(text=msg, color=TEXT_DARK, text_size=(300, None)),
+            content=Label(
+                text=msg,
+                color=TEXT_DARK,
+                text_size=(300, None),
+                font_name=APP_FONT,
+            ),
             size_hint=(0.85, None),
             height=220,
         )
         popup.open()
+
+    def _ensure_android_permissions(self):
+        try:
+            from android.permissions import check_permission, request_permissions
+        except Exception:
+            return
+
+        required = [
+            "android.permission.BLUETOOTH",
+            "android.permission.BLUETOOTH_ADMIN",
+            "android.permission.BLUETOOTH_SCAN",
+            "android.permission.BLUETOOTH_CONNECT",
+            "android.permission.ACCESS_FINE_LOCATION",
+            "android.permission.ACCESS_COARSE_LOCATION",
+        ]
+        missing = [perm for perm in required if not check_permission(perm)]
+        if missing:
+            request_permissions(missing)
 
 
 if __name__ == "__main__":
