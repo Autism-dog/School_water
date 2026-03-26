@@ -33,9 +33,12 @@ from kivy.uix.widget import Widget
 
 def _pick_android_cjk_font() -> Optional[str]:
     candidates = (
+        "/system/fonts/NotoSansSC-VF.ttf",
         "/system/fonts/NotoSansCJK-Regular.ttc",
         "/system/fonts/NotoSansSC-Regular.otf",
+        "/system/fonts/SourceHanSansCN-Regular.otf",
         "/system/fonts/DroidSansFallback.ttf",
+        "/system/fonts/DroidSansFallbackFull.ttf",
     )
     for path in candidates:
         if os.path.exists(path):
@@ -125,7 +128,7 @@ class AndroidBLE:
     def start_scan(self, on_device_found):
         """Start BLE scan; call on_device_found(name, address) for each result."""
         try:
-            from jnius import autoclass, cast, PythonJavaClass, java_method  # noqa: F401
+            from jnius import autoclass, PythonJavaClass, java_method
 
             BluetoothAdapter = autoclass("android.bluetooth.BluetoothAdapter")
             adapter = BluetoothAdapter.getDefaultAdapter()
@@ -133,30 +136,24 @@ class AndroidBLE:
                 self._on_error("蓝牙不可用")
                 return
 
-            scanner = adapter.getBluetoothLeScanner()
-            self._scanner = scanner
+            self._scanner = adapter
 
-            class ScanCallback(PythonJavaClass):
-                __javainterfaces__ = ["android/bluetooth/le/ScanCallback"]
+            class LeScanCallback(PythonJavaClass):
+                __javainterfaces__ = ["android/bluetooth/BluetoothAdapter$LeScanCallback"]
                 __javacontext__ = "app"
 
                 def __init__(self, callback):
                     super().__init__()
                     self._cb = callback
 
-                @java_method("(ILandroid/bluetooth/le/ScanResult;)V")
-                def onScanResult(self, callback_type, result):
-                    dev = result.getDevice()
+                @java_method("(Landroid/bluetooth/BluetoothDevice;I[B)V")
+                def onLeScan(self, dev, _rssi, _scan_record):
                     name = dev.getName() or ""
                     addr = dev.getAddress()
                     self._cb(name, addr, dev)
 
-                @java_method("(I)V")
-                def onScanFailed(self, error_code):
-                    pass
-
-            self._scan_callback = ScanCallback(on_device_found)
-            scanner.startScan(self._scan_callback)
+            self._scan_callback = LeScanCallback(on_device_found)
+            adapter.startLeScan(self._scan_callback)
         except Exception as exc:
             self._on_error(f"扫描失败: {exc}")
 
@@ -251,7 +248,7 @@ class AndroidBLE:
         if self._scanner is None or self._scan_callback is None:
             return
         try:
-            self._scanner.stopScan(self._scan_callback)
+            self._scanner.stopLeScan(self._scan_callback)
         except Exception:
             pass
         self._scanner = None
@@ -409,7 +406,7 @@ class WaterApp(App):
 
         # Title
         title = Label(
-            text="🌸 校园饮水机控制器 🌸",
+            text="校园饮水机控制器",
             font_size="22sp",
             bold=True,
             color=PINK_DEEP,
@@ -443,12 +440,12 @@ class WaterApp(App):
         root.add_widget(self._device_label)
 
         # Scan button
-        scan_btn = RoundedButton(text="🔍 搜索设备", size_hint_y=None, height=52)
+        scan_btn = RoundedButton(text="搜索设备", size_hint_y=None, height=52)
         scan_btn.bind(on_press=self._on_scan)
         root.add_widget(scan_btn)
 
         # Main action button
-        self._main_btn = RoundedButton(text="▶ 开启用水", size_hint_y=None, height=60)
+        self._main_btn = RoundedButton(text="开启用水", size_hint_y=None, height=60)
         self._main_btn.bind(on_press=self._on_main)
         self._main_btn.disabled = True
         root.add_widget(self._main_btn)
@@ -533,7 +530,7 @@ class WaterApp(App):
         content.add_widget(scroll)
 
         popup = Popup(
-            title="🌸 搜索到的设备",
+            title="搜索到的设备",
             content=content,
             size_hint=(0.88, None),
             height=420,
@@ -565,12 +562,12 @@ class WaterApp(App):
             self._main_btn.set_color(PINK_MAIN)
             self._status_label.text = "正在握手…"
         elif stage == "active":
-            self._main_btn.text     = "⏹ 结束用水"
+            self._main_btn.text     = "结束用水"
             self._main_btn.disabled = False
             self._main_btn.set_color(PINK_DEEP)
-            self._status_label.text = "用水中 ♡"
+            self._status_label.text = "用水中"
         else:
-            self._main_btn.text     = "▶ 开启用水"
+            self._main_btn.text     = "开启用水"
             self._main_btn.disabled = True
             self._main_btn.set_color(PINK_MAIN)
             self._device_label.text = "未连接"
@@ -601,7 +598,7 @@ class WaterApp(App):
     @mainthread
     def _show_error(self, msg: str):
         popup = Popup(
-            title="🚫 出错了",
+            title="出错了",
             content=Label(
                 text=msg,
                 color=TEXT_DARK,
