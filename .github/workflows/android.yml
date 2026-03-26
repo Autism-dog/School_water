@@ -62,6 +62,9 @@ jobs:
         run: |
           SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
           mkdir -p "$SDK_DIR/cmdline-tools"
+          # Cache-hit runs may already contain cmdline-tools/latest; reset to avoid nested moves.
+          rm -rf "$SDK_DIR/cmdline-tools/latest"
+          rm -rf /tmp/cmdline-tools-extracted
           # Download the latest command-line tools
           curl -sSL "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" \
             -o /tmp/cmdline-tools.zip
