@@ -47,6 +47,21 @@ def _resolve_emoji_font() -> Optional[str]:
     return None
 
 
+def _resolve_symbol_font() -> Optional[str]:
+    """Return the path to NotoSansSymbols2 for decorative symbols (✦✧✿❀ etc.), or None if unavailable."""
+    bundled = os.path.join(os.path.dirname(__file__), "NotoSansSymbols2-Regular.ttf")
+    if os.path.exists(bundled):
+        return bundled
+    system_candidates = (
+        "/system/fonts/NotoSansSymbols2-Regular.ttf",
+        "/system/fonts/NotoSansSymbols.ttf",
+    )
+    for path in system_candidates:
+        if os.path.exists(path):
+            return path
+    return None
+
+
 def _resolve_app_font() -> str:
     """Return the path to the CJK font to use for all UI text.
 
@@ -79,19 +94,30 @@ def _resolve_app_font() -> str:
 
 APP_FONT = _resolve_app_font()
 EMOJI_FONT = _resolve_emoji_font()
+SYMBOL_FONT = _resolve_symbol_font()
 
 # Register fonts with Kivy so they are available by name.
-# APP_FONT covers CJK and ASCII; EMOJI_FONT covers colour emoji glyphs.
+# APP_FONT covers CJK and ASCII; EMOJI_FONT covers colour emoji glyphs;
+# SYMBOL_FONT covers decorative symbols (✦✧✿❀♡ etc.).
 if APP_FONT and APP_FONT != "Roboto":
     LabelBase.register("AppFont", fn_regular=APP_FONT)
 if EMOJI_FONT:
     LabelBase.register("EmojiFont", fn_regular=EMOJI_FONT)
+if SYMBOL_FONT:
+    LabelBase.register("SymbolFont", fn_regular=SYMBOL_FONT)
 
 
 import re as _re
+
+# Decorative symbols (Dingbats & Misc Symbols) that need SymbolFont (✦✧✿❀♡ etc.)
+# These are in the U+2600-U+27BF range and are NOT color emoji
+_SYMBOL_RE = _re.compile(
+    r'([\u2600-\u27BF]+)'
+)
+
+# Color emoji (excludes the Dingbats range to avoid overlap with _SYMBOL_RE)
 _EMOJI_RE = _re.compile(
     r'([\U0001F300-\U0001FAFF'   # Misc Symbols & Pictographs, Emoticons, etc.
-    r'\U00002600-\U000027BF'     # Misc Symbols, Dingbats
     r'\U00002300-\U000023FF'     # Misc Technical (⏳ etc.)
     r'\U00002B00-\U00002BFF'     # Misc Symbols and Arrows
     r']+)'
@@ -99,14 +125,21 @@ _EMOJI_RE = _re.compile(
 
 
 def _me(text: str) -> str:
-    """Wrap emoji codepoints in [font=EmojiFont] Kivy markup.
+    """Wrap emoji and symbol codepoints in appropriate Kivy font markup.
 
-    Returns the text unchanged if EmojiFont is not available.
+    First wraps decorative symbols (✦✧✿❀♡) in [font=SymbolFont],
+    then wraps emoji in [font=EmojiFont].
+    Returns the text unchanged if fonts are not available.
     Callers must set markup=True on the widget.
     """
-    if not EMOJI_FONT:
-        return text
-    return _EMOJI_RE.sub(r'[font=EmojiFont]\1[/font]', text)
+    result = text
+    # Apply SymbolFont for decorative symbols (must come first to avoid conflicts)
+    if SYMBOL_FONT:
+        result = _SYMBOL_RE.sub(r'[font=SymbolFont]\1[/font]', result)
+    # Apply EmojiFont for color emoji
+    if EMOJI_FONT:
+        result = _EMOJI_RE.sub(r'[font=EmojiFont]\1[/font]', result)
+    return result
 
 
 def _mesc(text: str) -> str:
