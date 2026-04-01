@@ -401,6 +401,11 @@ class WaterApp(App):
         self._ble = None
         self._protocol = None
         self._java_devices = {}  # name+addr -> java device
+        self._picker_keys = set()
+        self._scan_popup = None
+        self._scan_inner = None
+        self._scan_empty_label = None
+        self._scan_title_label = None
 
         root = BoxLayout(orientation="vertical", padding=24, spacing=16)
 
@@ -468,9 +473,12 @@ class WaterApp(App):
     # ── Scan ──
 
     def _on_scan(self, *_):
+        self._stop_scan_and_close_picker()
+
         self._device_label.text = "扫描中…"
         self._java_devices = {}
         self._found_items  = []
+        self._reset_scan_ui_state()
 
         self._ble = AndroidBLE(
             on_data=self._on_data,
@@ -480,63 +488,114 @@ class WaterApp(App):
         )
         self._ble.start_scan(self._on_device_found)
 
-        # Stop scan after 8 seconds and show picker
-        Clock.schedule_once(self._show_device_picker, 8)
+        # Show picker immediately, then keep updating while scanning.
+        self._show_device_picker()
+        Clock.schedule_once(self._finish_scan, 8)
 
     def _on_device_found(self, name, addr, java_dev):
         key = f"{name}|{addr}"
         if key not in self._java_devices:
             self._java_devices[key] = java_dev
-            self._found_items.append((name or addr, key))
+            display_name = name or addr
+            self._found_items.append((display_name, key))
+            self._add_device_to_picker(display_name, key)
+            self._update_scan_device_count(len(self._found_items))
+
+    @mainthread
+    def _add_device_to_picker(self, display_name, key):
+        if self._scan_inner is None or key in self._picker_keys:
+            return
+        self._picker_keys.add(key)
+        if self._scan_empty_label is not None:
+            self._scan_inner.remove_widget(self._scan_empty_label)
+            self._scan_empty_label = None
+
+        btn = Button(
+            text=display_name,
+            size_hint_y=None,
+            height=46,
+            background_color=(*PINK_MAIN[:3], 1),
+            color=WHITE,
+            font_name=APP_FONT,
+        )
+
+        btn.bind(on_press=partial(self._on_picker_select, key))
+        self._scan_inner.add_widget(btn)
+
+    def _on_picker_select(self, key, *_):
+        self._stop_scan_and_close_picker()
+        self._connect_device(key)
+
+    @mainthread
+    def _update_scan_device_count(self, count: int):
+        self._device_label.text = f"扫描中，已发现 {count} 台设备"
 
     @mainthread
     def _show_device_picker(self, *_):
-        if self._ble:
-            self._ble.stop_scan()
-        if not self._found_items:
-            self._show_error("未发现蓝牙设备，请确认已开启蓝牙并靠近设备。")
+        if self._scan_popup:
             return
 
         content = BoxLayout(orientation="vertical", spacing=8, padding=12)
         scroll  = ScrollView(size_hint_y=None, height=300)
         inner   = BoxLayout(orientation="vertical", spacing=6, size_hint_y=None)
         inner.bind(minimum_height=inner.setter("height"))
-
-        popup_ref = []
-
-        for display_name, key in self._found_items:
-            btn = Button(
-                text=display_name,
-                size_hint_y=None,
-                height=46,
-                background_color=(*PINK_MAIN[:3], 1),
-                color=WHITE,
-                font_name=APP_FONT,
-            )
-
-            def make_handler(k):
-                def handler(*_):
-                    popup_ref[0].dismiss()
-                    self._connect_device(k)
-                return handler
-
-            btn.bind(on_press=make_handler(key))
-            inner.add_widget(btn)
+        self._scan_inner = inner
+        self._scan_empty_label = Label(
+            text="正在搜索附近蓝牙设备…",
+            color=TEXT_DARK,
+            font_name=APP_FONT,
+            size_hint_y=None,
+            height=46,
+        )
+        inner.add_widget(self._scan_empty_label)
 
         scroll.add_widget(inner)
-        content.add_widget(Label(text="选择设备", font_size="15sp", color=PINK_DEEP,
-                                 font_name=APP_FONT,
-                                 size_hint_y=None, height=36))
+        self._scan_title_label = Label(
+            text="选择设备（扫描中）",
+            font_size="15sp",
+            color=PINK_DEEP,
+            font_name=APP_FONT,
+            size_hint_y=None,
+            height=36,
+        )
+        content.add_widget(self._scan_title_label)
         content.add_widget(scroll)
 
-        popup = Popup(
+        self._scan_popup = Popup(
             title="搜索到的设备",
             content=content,
             size_hint=(0.88, None),
             height=420,
         )
-        popup_ref.append(popup)
-        popup.open()
+        self._scan_popup.bind(on_dismiss=self._on_scan_popup_dismiss)
+        self._scan_popup.open()
+
+    def _finish_scan(self, *_):
+        if self._ble:
+            self._ble.stop_scan()
+        if self._scan_title_label is not None:
+            self._scan_title_label.text = "选择设备（扫描完成）"
+        if not self._found_items:
+            self._stop_scan_and_close_picker()
+            self._show_error("未发现蓝牙设备，请确认已开启蓝牙并靠近设备。")
+            return
+        self._device_label.text = f"已发现 {len(self._found_items)} 台设备"
+
+    def _on_scan_popup_dismiss(self, *_):
+        self._reset_scan_ui_state()
+
+    def _reset_scan_ui_state(self):
+        self._picker_keys = set()
+        self._scan_popup = None
+        self._scan_inner = None
+        self._scan_empty_label = None
+        self._scan_title_label = None
+
+    def _stop_scan_and_close_picker(self):
+        if self._ble:
+            self._ble.stop_scan()
+        if self._scan_popup:
+            self._scan_popup.dismiss()
 
     def _connect_device(self, key):
         java_dev = self._java_devices.get(key)
