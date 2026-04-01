@@ -47,6 +47,15 @@ jobs:
             libssl-dev \
             python3-pip
 
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-buildozer-cython2-${{ hashFiles('android/buildozer.spec') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-buildozer-cython2-
+            ${{ runner.os }}-pip-buildozer-
+
       - name: Install buildozer + dependencies
         run: pip install buildozer "cython<3"
 
@@ -58,6 +67,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildozer-
 
+      - name: Cache Android SDK command-line tools zip
+        uses: actions/cache@v4
+        id: cache-cmdline-tools
+        with:
+          path: /tmp/cmdline-tools.zip
+          key: android-cmdline-tools-11076708
+
+      - name: Download Android SDK command-line tools
+        if: steps.cache-cmdline-tools.outputs.cache-hit != 'true'
+        run: |
+          curl -sSL "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" \
+            -o /tmp/cmdline-tools.zip
+
       - name: Install Android SDK command-line tools
         run: |
           SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
@@ -65,35 +87,27 @@ jobs:
           # Cache-hit runs may already contain cmdline-tools/latest; reset to avoid nested moves.
           rm -rf "$SDK_DIR/cmdline-tools/latest"
           rm -rf /tmp/cmdline-tools-extracted
-          # Download the latest command-line tools
-          curl -sSL "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" \
-            -o /tmp/cmdline-tools.zip
           unzip -q /tmp/cmdline-tools.zip -d /tmp/cmdline-tools-extracted
           # Install under cmdline-tools/latest (required layout for sdkmanager self-update)
           mv /tmp/cmdline-tools-extracted/cmdline-tools "$SDK_DIR/cmdline-tools/latest"
           # Create legacy tools/ symlink so buildozer finds sdkmanager at tools/bin/sdkmanager
-          # Use a relative target so the symlink works regardless of absolute path changes
           ln -sfn cmdline-tools/latest "$SDK_DIR/tools"
 
       - name: Accept Android SDK licenses
         run: |
           SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
           SDKMANAGER="$SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
-          # Also write license hashes directly for offline / cached runs.
-          # First hash: standard SDK license; second hash: newer SDK versions.
           mkdir -p "$SDK_DIR/licenses"
           printf '\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n' \
             > "$SDK_DIR/licenses/android-sdk-license"
           printf '\n84831b9409646a918e30573bab4c9c91346d8abd\n' \
             > "$SDK_DIR/licenses/android-sdk-preview-license"
-          # Accept all licenses via stdin
           yes | "$SDKMANAGER" --sdk_root="$SDK_DIR" --licenses || true
 
       - name: Install required Android SDK packages
         run: |
           SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
           SDKMANAGER="$SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
-          # Pre-install required API/build-tools so buildozer doesn't fail on missing API 34.
           yes | "$SDKMANAGER" --sdk_root="$SDK_DIR" \
             "platform-tools" \
             "platforms;android-34" \

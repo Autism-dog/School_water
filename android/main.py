@@ -21,6 +21,7 @@ from typing import Optional
 import pytz
 from kivy.app import App
 from kivy.clock import Clock, mainthread
+from kivy.core.text import LabelBase
 from kivy.core.window import Window
 from kivy.graphics import Color, RoundedRectangle
 from kivy.uix.boxlayout import BoxLayout
@@ -29,6 +30,21 @@ from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.widget import Widget
+
+
+def _resolve_emoji_font() -> Optional[str]:
+    """Return the path to NotoColorEmoji, or None if unavailable."""
+    bundled = os.path.join(os.path.dirname(__file__), "NotoColorEmoji.ttf")
+    if os.path.exists(bundled):
+        return bundled
+    system_candidates = (
+        "/system/fonts/NotoColorEmoji.ttf",
+        "/system/fonts/NotoEmoji.ttf",
+    )
+    for path in system_candidates:
+        if os.path.exists(path):
+            return path
+    return None
 
 
 def _resolve_app_font() -> str:
@@ -62,6 +78,36 @@ def _resolve_app_font() -> str:
 
 
 APP_FONT = _resolve_app_font()
+EMOJI_FONT = _resolve_emoji_font()
+
+# Register fonts with Kivy so they are available by name.
+# APP_FONT covers CJK and ASCII; EMOJI_FONT covers colour emoji glyphs.
+if APP_FONT and APP_FONT != "Roboto":
+    LabelBase.register("AppFont", fn_regular=APP_FONT)
+if EMOJI_FONT:
+    LabelBase.register("EmojiFont", fn_regular=EMOJI_FONT)
+
+
+import re as _re
+_EMOJI_RE = _re.compile(
+    r'([\U0001F300-\U0001FAFF'   # Misc Symbols & Pictographs, Emoticons, etc.
+    r'\U00002600-\U000027BF'     # Misc Symbols, Dingbats
+    r'\U00002300-\U000023FF'     # Misc Technical (⏳ etc.)
+    r'\U00002B00-\U00002BFF'     # Misc Symbols and Arrows
+    r']+)'
+)
+
+
+def _me(text: str) -> str:
+    """Wrap emoji codepoints in [font=EmojiFont] Kivy markup.
+
+    Returns the text unchanged if EmojiFont is not available.
+    Callers must set markup=True on the widget.
+    """
+    if not EMOJI_FONT:
+        return text
+    return _EMOJI_RE.sub(r'[font=EmojiFont]\1[/font]', text)
+
 
 # ── Colour palette ──
 PINK_DEEP    = (0.878, 0.235, 0.451, 1)   # vivid rose
@@ -435,6 +481,7 @@ class RoundedButton(Button):
         self.font_size         = "20sp"
         self.bold              = True
         self.font_name         = APP_FONT
+        self.markup            = True
         _bg = bg or PINK_DEEP
         with self.canvas.before:
             # Shadow
@@ -478,6 +525,7 @@ class DeviceButton(Button):
         self.bold              = is_water
         self.halign            = "left"
         self.valign            = "middle"
+        self.markup            = True
         _bg = PINK_DEEP if is_water else PINK_MAIN
         _shadow = PINK_SHADOW if is_water else (0.800, 0.380, 0.530, 1)
         with self.canvas.before:
@@ -542,10 +590,10 @@ class WaterApp(App):
             halign="center",
         ))
         header.add_widget(Label(
-            text=f"{WATER_EMOJI} 校园饮水机控制器 {WATER_EMOJI}",
+            text=_me(f"{WATER_EMOJI} 校园饮水机控制器 {WATER_EMOJI}"),
             font_size="24sp", bold=True, color=WHITE,
             font_name=APP_FONT, size_hint_y=None, height=54,
-            halign="center",
+            halign="center", markup=True,
         ))
         header.add_widget(Label(
             text="kawaii water control  ✦  少女风",
@@ -565,17 +613,17 @@ class WaterApp(App):
             size_hint_y=None, height=84,
         )
         self._device_label = Label(
-            text=f"{WIFI_EMOJI}  未连接设备",
+            text=_me(f"{WIFI_EMOJI}  未连接设备"),
             font_size="16sp", bold=True, color=TEXT_DARK,
             font_name=APP_FONT, halign="left", valign="middle",
-            size_hint_y=None, height=40,
+            size_hint_y=None, height=40, markup=True,
         )
         self._device_label.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
         self._status_label = Label(
-            text=f"{WAIT_EMOJI}  等待连接中...",
+            text=_me(f"{WAIT_EMOJI}  等待连接中..."),
             font_size="13sp", color=PINK_DEEP,
             font_name=APP_FONT, halign="left", valign="middle",
-            size_hint_y=None, height=30,
+            size_hint_y=None, height=30, markup=True,
         )
         self._status_label.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
         status_card.add_widget(self._device_label)
@@ -593,13 +641,13 @@ class WaterApp(App):
             orientation="horizontal", size_hint_y=None, height=56, spacing=10,
         )
         self._scan_status_label = Label(
-            text=f"  {SCAN_EMOJI}  附近设备",
+            text=_me(f"  {SCAN_EMOJI}  附近设备"),
             font_size="16sp", bold=True, color=TEXT_DARK,
-            font_name=APP_FONT, halign="left", valign="middle",
+            font_name=APP_FONT, halign="left", valign="middle", markup=True,
         )
         self._scan_status_label.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
         scan_btn = RoundedButton(
-            text=f"{SCAN_EMOJI} 搜索",
+            text=_me(f"{SCAN_EMOJI} 搜索"),
             font_size="17sp",
             size_hint_x=None, width=110, size_hint_y=None, height=56,
         )
@@ -634,7 +682,7 @@ class WaterApp(App):
 
         # ── Main Action Button ────────────────────────────────────────────────
         self._main_btn = RoundedButton(
-            text=f"  {WATER_EMOJI}  开启用水",
+            text=_me(f"  {WATER_EMOJI}  开启用水"),
             size_hint_y=None, height=80,
         )
         self._main_btn.bind(on_press=self._on_main)
@@ -656,15 +704,15 @@ class WaterApp(App):
         # Reset list to "searching" placeholder
         self._scan_inner.clear_widgets()
         self._scan_empty_label = Label(
-            text=f"{SCAN_EMOJI}  正在搜索附近蓝牙设备...",
+            text=_me(f"{SCAN_EMOJI}  正在搜索附近蓝牙设备..."),
             font_size="14sp", color=PINK_MAIN,
             font_name=APP_FONT, size_hint_y=None, height=80,
-            halign="center",
+            halign="center", markup=True,
         )
         self._scan_empty_label.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
         self._scan_inner.add_widget(self._scan_empty_label)
-        self._scan_status_label.text = f"  {SCAN_EMOJI}  正在搜索..."
-        self._device_label.text      = f"{SCAN_EMOJI}  扫描中..."
+        self._scan_status_label.text = _me(f"  {SCAN_EMOJI}  正在搜索...")
+        self._device_label.text      = _me(f"{SCAN_EMOJI}  扫描中...")
 
         self._ble = AndroidBLE(
             on_data=self._on_data,
@@ -696,7 +744,7 @@ class WaterApp(App):
 
         is_water   = display_name.lower().startswith("water")
         icon       = f"★ {WATER_EMOJI}" if is_water else "  📡"
-        label_text = f"{icon}  {display_name}"
+        label_text = _me(f"{icon}  {display_name}")
         btn = DeviceButton(
             is_water=is_water,
             text=label_text,
@@ -707,8 +755,8 @@ class WaterApp(App):
         self._scan_inner.add_widget(btn)
 
         count = len(self._found_items)
-        self._scan_status_label.text = f"  {SCAN_EMOJI}  附近设备（{count}）"
-        self._device_label.text      = f"{WIFI_EMOJI}  发现 {count} 台设备"
+        self._scan_status_label.text = _me(f"  {SCAN_EMOJI}  附近设备（{count}）")
+        self._device_label.text      = _me(f"{WIFI_EMOJI}  发现 {count} 台设备")
 
     def _on_device_select(self, key, *_):
         if self._ble:
@@ -721,8 +769,8 @@ class WaterApp(App):
             self._ble.stop_scan()
         count = len(self._found_items)
         if count == 0:
-            self._scan_status_label.text = f"  {SCAN_EMOJI}  未发现设备"
-            self._device_label.text      = f"{WIFI_EMOJI}  未发现蓝牙设备"
+            self._scan_status_label.text = _me(f"  {SCAN_EMOJI}  未发现设备")
+            self._device_label.text      = _me(f"{WIFI_EMOJI}  未发现蓝牙设备")
             if self._scan_empty_label is None:
                 self._scan_empty_label = Label(
                     text="(´；ω；`)  未发现设备\n请开启蓝牙并靠近设备后重试",
@@ -735,8 +783,8 @@ class WaterApp(App):
                 )
                 self._scan_inner.add_widget(self._scan_empty_label)
         else:
-            self._scan_status_label.text = f"  {SCAN_EMOJI}  附近设备（{count}，完成 {OK_EMOJI}）"
-            self._device_label.text      = f"{WIFI_EMOJI}  已发现 {count} 台设备"
+            self._scan_status_label.text = _me(f"  {SCAN_EMOJI}  附近设备（{count}，完成 {OK_EMOJI}）")
+            self._device_label.text      = _me(f"{WIFI_EMOJI}  已发现 {count} 台设备")
 
     def _connect_device(self, key):
         java_dev = self._java_devices.get(key)
@@ -757,21 +805,21 @@ class WaterApp(App):
     @mainthread
     def _update_stage(self, stage: str):
         if stage == "pending":
-            self._main_btn.text     = f"  {WAIT_EMOJI}  请稍候..."
+            self._main_btn.text     = _me(f"  {WAIT_EMOJI}  请稍候...")
             self._main_btn.disabled = True
             self._main_btn.set_color(PINK_MAIN)
-            self._status_label.text = f"{WAIT_EMOJI}  正在握手..."
+            self._status_label.text = _me(f"{WAIT_EMOJI}  正在握手...")
         elif stage == "active":
-            self._main_btn.text     = f"  {OK_EMOJI}  结束用水"
+            self._main_btn.text     = _me(f"  {OK_EMOJI}  结束用水")
             self._main_btn.disabled = False
             self._main_btn.set_color(PINK_ACCENT)
-            self._status_label.text = f"{OK_EMOJI}  用水中 ♡"
+            self._status_label.text = _me(f"{OK_EMOJI}  用水中 ♡")
         else:
-            self._main_btn.text     = f"  {WATER_EMOJI}  开启用水"
+            self._main_btn.text     = _me(f"  {WATER_EMOJI}  开启用水")
             self._main_btn.disabled = True
             self._main_btn.set_color(PINK_DEEP)
-            self._device_label.text = f"{WIFI_EMOJI}  未连接设备"
-            self._status_label.text = f"{WAIT_EMOJI}  等待连接中..."
+            self._device_label.text = _me(f"{WIFI_EMOJI}  未连接设备")
+            self._status_label.text = _me(f"{WAIT_EMOJI}  等待连接中...")
 
     def _on_main(self, *_):
         if self._protocol is None:
