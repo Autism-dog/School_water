@@ -109,6 +109,15 @@ def _me(text: str) -> str:
     return _EMOJI_RE.sub(r'[font=EmojiFont]\1[/font]', text)
 
 
+def _mesc(text: str) -> str:
+    """Escape Kivy markup special chars then apply _me().
+
+    Use this for any user-controlled text (e.g. BLE device names)
+    that will be set on a markup=True widget.
+    """
+    return _me(text.replace('&', '&amp;').replace('[', '&#91;').replace(']', '&#93;'))
+
+
 # ── Colour palette ──
 PINK_DEEP    = (0.878, 0.235, 0.451, 1)   # vivid rose
 PINK_MAIN    = (0.957, 0.502, 0.663, 1)   # medium pink
@@ -548,13 +557,14 @@ class DeviceButton(Button):
 def _deco_label(text, font_size="13sp", color=None):
     """A small decorative label (sakura row, star divider, etc.)."""
     lbl = Label(
-        text=text,
+        text=_me(text),
         font_size=font_size,
         color=color or PINK_MAIN,
         font_name=APP_FONT,
         size_hint_y=None,
         height=22,
         halign="center",
+        markup=True,
     )
     lbl.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
     return lbl
@@ -584,10 +594,10 @@ class WaterApp(App):
             size_hint_y=None, height=118,
         )
         header.add_widget(Label(
-            text=HEADER_DECO,
+            text=_me(HEADER_DECO),
             font_size="13sp", color=(1, 1, 1, 0.75),
             font_name=APP_FONT, size_hint_y=None, height=22,
-            halign="center",
+            halign="center", markup=True,
         ))
         header.add_widget(Label(
             text=_me(f"{WATER_EMOJI} 校园饮水机控制器 {WATER_EMOJI}"),
@@ -596,10 +606,10 @@ class WaterApp(App):
             halign="center", markup=True,
         ))
         header.add_widget(Label(
-            text="kawaii water control  ✦  少女风",
+            text=_me("kawaii water control  ✦  少女风"),
             font_size="12sp", color=(1, 1, 1, 0.80),
             font_name=APP_FONT, size_hint_y=None, height=26,
-            halign="center",
+            halign="center", markup=True,
         ))
         root.add_widget(header)
 
@@ -666,10 +676,10 @@ class WaterApp(App):
         )
         self._scan_inner.bind(minimum_height=self._scan_inner.setter("height"))
         self._scan_empty_label = Label(
-            text=f"✿  点击搜索以发现附近设备  ✿",
+            text=_me("✿  点击搜索以发现附近设备  ✿"),
             font_size="14sp", color=TEXT_MUTED,
             font_name=APP_FONT, size_hint_y=None, height=80,
-            halign="center",
+            halign="center", markup=True,
         )
         self._scan_empty_label.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
         self._scan_inner.add_widget(self._scan_empty_label)
@@ -744,7 +754,7 @@ class WaterApp(App):
 
         is_water   = display_name.lower().startswith("water")
         icon       = f"★ {WATER_EMOJI}" if is_water else "  📡"
-        label_text = _me(f"{icon}  {display_name}")
+        label_text = _me(icon) + "  " + _mesc(display_name)
         btn = DeviceButton(
             is_water=is_water,
             text=label_text,
