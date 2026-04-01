@@ -369,16 +369,34 @@ class WaterProtocol:
 # Kivy UI
 # ────────────────────────────────────────────────────────────────────────────
 
+class Card(BoxLayout):
+    """BoxLayout with a rounded-rectangle background — used for UI cards."""
+
+    def __init__(self, bg_color=None, radius=16, **kwargs):
+        super().__init__(**kwargs)
+        _bg = bg_color or WHITE
+        with self.canvas.before:
+            self._card_color = Color(*_bg)
+            self._card_rect  = RoundedRectangle(pos=self.pos, size=self.size, radius=[radius])
+        self.bind(pos=self._card_update, size=self._card_update)
+
+    def _card_update(self, *_):
+        self._card_rect.pos  = self.pos
+        self._card_rect.size = self.size
+
+    def set_bg_color(self, rgba):
+        self._card_color.rgba = rgba
+
+
 class RoundedButton(Button):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.background_normal  = ""
-        self.background_color   = (0, 0, 0, 0)
-        self.color              = WHITE
-        self.font_size          = "18sp"
-        self.bold               = True
-        self.font_name = APP_FONT
-        self._bg_color          = PINK_DEEP
+        self.background_normal = ""
+        self.background_color  = (0, 0, 0, 0)
+        self.color             = WHITE
+        self.font_size         = "18sp"
+        self.bold              = True
+        self.font_name         = APP_FONT
         with self.canvas.before:
             self._color_instr = Color(*PINK_DEEP)
             self._rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[24])
@@ -392,93 +410,167 @@ class RoundedButton(Button):
         self._color_instr.rgba = rgba
 
 
+class DeviceButton(Button):
+    """Touch-friendly inline device list button.
+
+    Devices whose names start with 'water' (case-insensitive) are highlighted
+    with PINK_DEEP; all others use PINK_MAIN.
+    """
+
+    def __init__(self, is_water=False, **kwargs):
+        super().__init__(**kwargs)
+        self.background_normal = ""
+        self.background_color  = (0, 0, 0, 0)
+        self.color             = WHITE
+        self.font_name         = APP_FONT
+        self.font_size         = "16sp"
+        self.halign            = "left"
+        self.valign            = "middle"
+        _bg = PINK_DEEP if is_water else PINK_MAIN
+        with self.canvas.before:
+            self._d_color = Color(*_bg)
+            self._d_rect  = RoundedRectangle(pos=self.pos, size=self.size, radius=[14])
+        self.bind(pos=self._upd, size=self._upd)
+
+    def _upd(self, *_):
+        self._d_rect.pos  = self.pos
+        self._d_rect.size = self.size
+        self.text_size    = (self.width - 32, None)
+
+
 class WaterApp(App):
 
     def build(self):
         Window.clearcolor = PINK_PALE
         self._ensure_android_permissions()
 
-        self._ble = None
-        self._protocol = None
-        self._java_devices = {}  # name+addr -> java device
-        self._picker_keys = set()
-        self._scan_popup = None
-        self._scan_inner = None
-        self._scan_empty_label = None
-        self._scan_title_label = None
+        self._ble               = None
+        self._protocol          = None
+        self._java_devices      = {}
+        self._found_items       = []
+        self._picker_keys       = set()
+        self._scan_inner        = None
+        self._scan_empty_label  = None
+        self._scan_status_label = None
 
-        root = BoxLayout(orientation="vertical", padding=24, spacing=16)
+        root = BoxLayout(orientation="vertical", padding=(16, 20, 16, 16), spacing=12)
 
-        # Title
-        title = Label(
+        # ── Header Card ──────────────────────────────────────────────────────
+        header = Card(
+            bg_color=PINK_DEEP, radius=20,
+            orientation="vertical", padding=(16, 10), spacing=0,
+            size_hint_y=None, height=90,
+        )
+        header.add_widget(Label(
             text="校园饮水机控制器",
-            font_size="22sp",
-            bold=True,
-            color=PINK_DEEP,
-            font_name=APP_FONT,
-            size_hint_y=None,
-            height=60,
+            font_size="22sp", bold=True, color=WHITE,
+            font_name=APP_FONT, size_hint_y=None, height=52,
+        ))
+        header.add_widget(Label(
+            text="kawaii water control",
+            font_size="12sp", color=(1, 1, 1, 0.80),
+            font_name=APP_FONT, size_hint_y=None, height=26,
+        ))
+        root.add_widget(header)
+
+        # ── Status Card ──────────────────────────────────────────────────────
+        status_card = Card(
+            bg_color=WHITE, radius=16,
+            orientation="vertical", padding=(16, 10), spacing=2,
+            size_hint_y=None, height=76,
         )
-        root.add_widget(title)
-
-        subtitle = Label(
-            text="kawaii water control ♡",
-            font_size="13sp",
-            color=PINK_MAIN,
-            font_name=APP_FONT,
-            size_hint_y=None,
-            height=28,
-        )
-        root.add_widget(subtitle)
-
-        root.add_widget(Widget(size_hint_y=None, height=12))
-
-        # Device name label
         self._device_label = Label(
-            text="未连接",
-            font_size="14sp",
-            color=TEXT_DARK,
-            font_name=APP_FONT,
-            size_hint_y=None,
-            height=32,
+            text="未连接设备",
+            font_size="15sp", bold=True, color=TEXT_DARK,
+            font_name=APP_FONT, halign="left", valign="middle",
+            size_hint_y=None, height=36,
         )
-        root.add_widget(self._device_label)
+        self._device_label.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
+        self._status_label = Label(
+            text="等待连接...",
+            font_size="13sp", color=PINK_MAIN,
+            font_name=APP_FONT, halign="left", valign="middle",
+            size_hint_y=None, height=26,
+        )
+        self._status_label.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
+        status_card.add_widget(self._device_label)
+        status_card.add_widget(self._status_label)
+        root.add_widget(status_card)
 
-        # Scan button
-        scan_btn = RoundedButton(text="搜索设备", size_hint_y=None, height=52)
+        # ── Device List Card (fills remaining vertical space) ────────────────
+        dev_card = Card(
+            bg_color=WHITE, radius=16,
+            orientation="vertical", padding=(12, 10), spacing=8,
+        )
+
+        # Row: list section title + scan button
+        list_header_row = BoxLayout(
+            orientation="horizontal", size_hint_y=None, height=48, spacing=10,
+        )
+        self._scan_status_label = Label(
+            text="附近设备",
+            font_size="15sp", bold=True, color=TEXT_DARK,
+            font_name=APP_FONT, halign="left", valign="middle",
+        )
+        self._scan_status_label.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
+        scan_btn = RoundedButton(
+            text="搜索", font_size="15sp",
+            size_hint_x=None, width=90, size_hint_y=None, height=48,
+        )
         scan_btn.bind(on_press=self._on_scan)
-        root.add_widget(scan_btn)
+        list_header_row.add_widget(self._scan_status_label)
+        list_header_row.add_widget(scan_btn)
+        dev_card.add_widget(list_header_row)
 
-        # Main action button
-        self._main_btn = RoundedButton(text="开启用水", size_hint_y=None, height=60)
+        # Inline scrollable device list
+        dev_scroll = ScrollView(do_scroll_x=False)
+        self._scan_inner = BoxLayout(
+            orientation="vertical", spacing=8,
+            size_hint_y=None, padding=(0, 4),
+        )
+        self._scan_inner.bind(minimum_height=self._scan_inner.setter("height"))
+        self._scan_empty_label = Label(
+            text="点击搜索以发现附近设备",
+            font_size="14sp", color=(0.65, 0.65, 0.65, 1),
+            font_name=APP_FONT, size_hint_y=None, height=64,
+            halign="center",
+        )
+        self._scan_empty_label.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
+        self._scan_inner.add_widget(self._scan_empty_label)
+        dev_scroll.add_widget(self._scan_inner)
+        dev_card.add_widget(dev_scroll)
+        root.add_widget(dev_card)
+
+        # ── Main Action Button ────────────────────────────────────────────────
+        self._main_btn = RoundedButton(text="开启用水", size_hint_y=None, height=64)
         self._main_btn.bind(on_press=self._on_main)
         self._main_btn.disabled = True
         root.add_widget(self._main_btn)
-
-        # Status
-        self._status_label = Label(
-            text="等待连接…",
-            font_size="13sp",
-            color=PINK_MAIN,
-            font_name=APP_FONT,
-            size_hint_y=None,
-            height=32,
-        )
-        root.add_widget(self._status_label)
-
-        root.add_widget(Widget())  # spacer
 
         return root
 
     # ── Scan ──
 
     def _on_scan(self, *_):
-        self._stop_scan_and_close_picker()
+        if self._ble:
+            self._ble.stop_scan()
 
-        self._device_label.text = "扫描中…"
         self._java_devices = {}
         self._found_items  = []
-        self._reset_scan_ui_state()
+        self._picker_keys  = set()
+
+        # Reset list to "searching" placeholder
+        self._scan_inner.clear_widgets()
+        self._scan_empty_label = Label(
+            text="正在搜索附近蓝牙设备...",
+            font_size="14sp", color=PINK_MAIN,
+            font_name=APP_FONT, size_hint_y=None, height=64,
+            halign="center",
+        )
+        self._scan_empty_label.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
+        self._scan_inner.add_widget(self._scan_empty_label)
+        self._scan_status_label.text = "正在搜索..."
+        self._device_label.text      = "扫描中..."
 
         self._ble = AndroidBLE(
             on_data=self._on_data,
@@ -487,9 +579,6 @@ class WaterApp(App):
             on_error=self._show_error,
         )
         self._ble.start_scan(self._on_device_found)
-
-        # Show picker immediately, then keep updating while scanning.
-        self._show_device_picker()
         Clock.schedule_once(self._finish_scan, 8)
 
     def _on_device_found(self, name, addr, java_dev):
@@ -498,104 +587,61 @@ class WaterApp(App):
             self._java_devices[key] = java_dev
             display_name = name or addr
             self._found_items.append((display_name, key))
-            self._add_device_to_picker(display_name, key)
-            self._update_scan_device_count(len(self._found_items))
+            self._add_device_to_list(display_name, key)
 
     @mainthread
-    def _add_device_to_picker(self, display_name, key):
+    def _add_device_to_list(self, display_name, key):
         if self._scan_inner is None or key in self._picker_keys:
             return
         self._picker_keys.add(key)
+
+        # Remove placeholder on first real result
         if self._scan_empty_label is not None:
             self._scan_inner.remove_widget(self._scan_empty_label)
             self._scan_empty_label = None
 
-        btn = Button(
-            text=display_name,
+        is_water  = display_name.lower().startswith("water")
+        label_text = ("★ " if is_water else "") + display_name
+        btn = DeviceButton(
+            is_water=is_water,
+            text=label_text,
             size_hint_y=None,
-            height=46,
-            background_color=(*PINK_MAIN[:3], 1),
-            color=WHITE,
-            font_name=APP_FONT,
+            height=60,
         )
-
-        btn.bind(on_press=partial(self._on_picker_select, key))
+        btn.bind(on_press=partial(self._on_device_select, key))
         self._scan_inner.add_widget(btn)
 
-    def _on_picker_select(self, key, *_):
-        self._stop_scan_and_close_picker()
+        count = len(self._found_items)
+        self._scan_status_label.text = f"附近设备（{count}）"
+        self._device_label.text      = f"发现 {count} 台设备"
+
+    def _on_device_select(self, key, *_):
+        if self._ble:
+            self._ble.stop_scan()
         self._connect_device(key)
 
     @mainthread
-    def _update_scan_device_count(self, count: int):
-        self._device_label.text = f"扫描中，已发现 {count} 台设备"
-
-    @mainthread
-    def _show_device_picker(self, *_):
-        if self._scan_popup:
-            return
-
-        content = BoxLayout(orientation="vertical", spacing=8, padding=12)
-        scroll  = ScrollView(size_hint_y=None, height=300)
-        inner   = BoxLayout(orientation="vertical", spacing=6, size_hint_y=None)
-        inner.bind(minimum_height=inner.setter("height"))
-        self._scan_inner = inner
-        self._scan_empty_label = Label(
-            text="正在搜索附近蓝牙设备…",
-            color=TEXT_DARK,
-            font_name=APP_FONT,
-            size_hint_y=None,
-            height=46,
-        )
-        inner.add_widget(self._scan_empty_label)
-
-        scroll.add_widget(inner)
-        self._scan_title_label = Label(
-            text="选择设备（扫描中）",
-            font_size="15sp",
-            color=PINK_DEEP,
-            font_name=APP_FONT,
-            size_hint_y=None,
-            height=36,
-        )
-        content.add_widget(self._scan_title_label)
-        content.add_widget(scroll)
-
-        self._scan_popup = Popup(
-            title="搜索到的设备",
-            content=content,
-            size_hint=(0.88, None),
-            height=420,
-        )
-        self._scan_popup.bind(on_dismiss=self._on_scan_popup_dismiss)
-        self._scan_popup.open()
-
     def _finish_scan(self, *_):
         if self._ble:
             self._ble.stop_scan()
-        if self._scan_title_label is not None:
-            self._scan_title_label.text = "选择设备（扫描完成）"
-        if not self._found_items:
-            self._stop_scan_and_close_picker()
-            self._show_error("未发现蓝牙设备，请确认已开启蓝牙并靠近设备。")
-            return
-        self._device_label.text = f"已发现 {len(self._found_items)} 台设备"
-
-    def _on_scan_popup_dismiss(self, *_):
-        self._reset_scan_ui_state()
-
-    def _reset_scan_ui_state(self):
-        self._picker_keys = set()
-        self._scan_popup = None
-        self._scan_inner = None
-        self._scan_empty_label = None
-        self._scan_title_label = None
-
-    def _stop_scan_and_close_picker(self):
-        if self._ble:
-            self._ble.stop_scan()
-        if self._scan_popup:
-            self._scan_popup.dismiss()
+        count = len(self._found_items)
+        if count == 0:
+            self._scan_status_label.text = "未发现设备"
+            self._device_label.text      = "未发现蓝牙设备"
+            if self._scan_empty_label is None:
+                self._scan_empty_label = Label(
+                    text="未发现设备，请开启蓝牙并靠近设备后重试",
+                    font_size="13sp", color=(0.75, 0.35, 0.35, 1),
+                    font_name=APP_FONT, size_hint_y=None, height=80,
+                    halign="center",
+                )
+                self._scan_empty_label.bind(
+                    size=lambda w, s: setattr(w, "text_size", (s[0], None))
+                )
+                self._scan_inner.add_widget(self._scan_empty_label)
+        else:
+            self._scan_status_label.text = f"附近设备（{count}，完成）"
+            self._device_label.text      = f"已发现 {count} 台设备"
 
     def _connect_device(self, key):
         java_dev = self._java_devices.get(key)
@@ -616,10 +662,10 @@ class WaterApp(App):
     @mainthread
     def _update_stage(self, stage: str):
         if stage == "pending":
-            self._main_btn.text     = "请稍候…"
+            self._main_btn.text     = "请稍候..."
             self._main_btn.disabled = True
             self._main_btn.set_color(PINK_MAIN)
-            self._status_label.text = "正在握手…"
+            self._status_label.text = "正在握手..."
         elif stage == "active":
             self._main_btn.text     = "结束用水"
             self._main_btn.disabled = False
@@ -629,16 +675,14 @@ class WaterApp(App):
             self._main_btn.text     = "开启用水"
             self._main_btn.disabled = True
             self._main_btn.set_color(PINK_MAIN)
-            self._device_label.text = "未连接"
-            self._status_label.text = "等待连接…"
+            self._device_label.text = "未连接设备"
+            self._status_label.text = "等待连接..."
 
     def _on_main(self, *_):
         if self._protocol is None:
             return
         if self._protocol._is_started:
             self._protocol.end_session()
-        else:
-            pass  # already handled by connect flow
 
     # ── BLE forwarding helpers ──
 
