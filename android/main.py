@@ -1,5 +1,5 @@
 """
-Android APK — Kivy native UI + pyjnius (Android BLE) for water dispenser control.
+Android APK — Kivy native UI + pyjnius (Android BLE) for school hot water control (shower system).
 
 Build with buildozer:
     cd android/
@@ -171,7 +171,7 @@ TEXT_MUTED   = (0.671, 0.463, 0.549, 1)   # muted rose text
 # ── Kawaii / anime decorative strings ──
 DECO_SAKURA  = "✿ ❀ ✿ ❀ ✿ ❀ ✿ ❀ ✿"
 DECO_STARS   = "✦ ✧ ✦ ✧ ✦ ✧ ✦"
-HEADER_DECO  = "♡ 少女饮水机 ♡"
+HEADER_DECO  = "♡ 少女热水器 ♡"
 WATER_EMOJI  = "💧"
 SCAN_EMOJI   = "🔍"
 CONN_EMOJI   = "✨"
@@ -639,7 +639,7 @@ class WaterApp(App):
             halign="center", markup=True,
         ))
         header.add_widget(Label(
-            text=_me(f"{WATER_EMOJI} 校园饮水机控制器 {WATER_EMOJI}"),
+            text=_me(f"{WATER_EMOJI} 校园热水控制系统 {WATER_EMOJI}"),
             font_size="24sp", bold=True, color=WHITE,
             font_name=APP_FONT, size_hint_y=None, height=54,
             halign="center", markup=True,

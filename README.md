@@ -1,6 +1,6 @@
-# 🌸💧 校园饮水机控制器 / School Water Control 💧🌸
+# 🌸💧 校园热水控制系统 / School Water Control 💧🌸
 
-> kawaii water control — 少女风格校园蓝牙饮水机控制器
+> kawaii water control — 少女风格校园蓝牙热水控制器（洗澡用）
 
 基于 [celesWuff/waterctl](https://github.com/celesWuff/waterctl) 2.x 协议，使用 Python 重写，支持：
 

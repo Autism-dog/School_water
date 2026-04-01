@@ -109,7 +109,7 @@ class WaterController:
         In a real GUI you would show a list; here we return whichever device
         advertises the water-dispenser service UUID first.
         """
-        logger.info("Scanning for water dispenser…")
+        logger.info("Scanning for hot water controller…")
         device = await BleakScanner.find_device_by_filter(
             lambda d, _adv: True,  # accept any; GUI layer should filter
             timeout=10.0,

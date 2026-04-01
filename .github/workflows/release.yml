@@ -62,7 +62,7 @@ jobs:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: "🌸 School Water ${{ steps.tag.outputs.tag }}"
           body: |
-            ## 🌸 校园饮水机控制器 ${{ steps.tag.outputs.tag }}
+            ## 🌸 校园热水控制系统 ${{ steps.tag.outputs.tag }}
 
             ### 下载
 
