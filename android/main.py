@@ -66,15 +66,20 @@ def _resolve_app_font() -> str:
     """Return the path to the CJK font to use for all UI text.
 
     Priority:
-    1. Bundled NotoSansSC variable-font shipped inside the APK assets.
-    2. Known Android system-font locations.
-    3. Kivy's built-in 'Roboto' as a last resort (will show □ for CJK).
+    1. Bundled LXGW WenKai (霞鹜文楷) for a kawaii Kaiti style.
+    2. Bundled NotoSansSC variable-font as fallback.
+    3. Known Android system-font locations.
+    4. Kivy's built-in 'Roboto' as a last resort (will show □ for CJK).
     """
     # Buildozer copies source files into the app's root directory, so the
     # font lives next to main.py at runtime.
-    bundled = os.path.join(os.path.dirname(__file__), "NotoSansSC-VF.ttf")
-    if os.path.exists(bundled):
-        return bundled
+    bundled_kaiti = os.path.join(os.path.dirname(__file__), "LXGWWenKai-Regular.ttf")
+    if os.path.exists(bundled_kaiti):
+        return bundled_kaiti
+    
+    bundled_sans = os.path.join(os.path.dirname(__file__), "NotoSansSC-VF.ttf")
+    if os.path.exists(bundled_sans):
+        return bundled_sans
 
     # Fallback: system fonts (covers rooted / OEM devices that ship CJK fonts)
     system_candidates = (
@@ -97,7 +102,8 @@ EMOJI_FONT = _resolve_emoji_font()
 SYMBOL_FONT = _resolve_symbol_font()
 
 # Register fonts with Kivy so they are available by name.
-# APP_FONT covers CJK and ASCII; EMOJI_FONT covers colour emoji glyphs;
+# APP_FONT uses LXGW WenKai (楷体) for kawaii aesthetic on CJK and ASCII;
+# EMOJI_FONT covers colour emoji glyphs;
 # SYMBOL_FONT covers decorative symbols (✦✧✿❀♡ etc.).
 if APP_FONT and APP_FONT != "Roboto":
     LabelBase.register("AppFont", fn_regular=APP_FONT)
