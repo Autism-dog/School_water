@@ -3,7 +3,7 @@ title           = School Water
 package.name    = schoolwater
 package.domain  = org.schoolwater
 source.dir      = .
-source.include_exts = py,png,jpg,kv,atlas,wasm
+source.include_exts = py,png,jpg,kv,atlas,wasm,ttf,otf
 version         = 1.0.0
 
 requirements = python3,kivy==2.3.0,pytz,pyjnius

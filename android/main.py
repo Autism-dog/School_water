@@ -31,8 +31,22 @@ from kivy.uix.scrollview import ScrollView
 from kivy.uix.widget import Widget
 
 
-def _pick_android_cjk_font() -> Optional[str]:
-    candidates = (
+def _resolve_app_font() -> str:
+    """Return the path to the CJK font to use for all UI text.
+
+    Priority:
+    1. Bundled NotoSansSC variable-font shipped inside the APK assets.
+    2. Known Android system-font locations.
+    3. Kivy's built-in 'Roboto' as a last resort (will show □ for CJK).
+    """
+    # Buildozer copies source files into the app's root directory, so the
+    # font lives next to main.py at runtime.
+    bundled = os.path.join(os.path.dirname(__file__), "NotoSansSC-VF.ttf")
+    if os.path.exists(bundled):
+        return bundled
+
+    # Fallback: system fonts (covers rooted / OEM devices that ship CJK fonts)
+    system_candidates = (
         "/system/fonts/NotoSansSC-VF.ttf",
         "/system/fonts/NotoSansCJK-Regular.ttc",
         "/system/fonts/NotoSansSC-Regular.otf",
@@ -40,13 +54,14 @@ def _pick_android_cjk_font() -> Optional[str]:
         "/system/fonts/DroidSansFallback.ttf",
         "/system/fonts/DroidSansFallbackFull.ttf",
     )
-    for path in candidates:
+    for path in system_candidates:
         if os.path.exists(path):
             return path
-    return None
+
+    return "Roboto"
 
 
-APP_FONT = _pick_android_cjk_font() or "Roboto"
+APP_FONT = _resolve_app_font()
 
 # ── Colour palette ──
 PINK_DEEP    = (0.878, 0.235, 0.451, 1)   # vivid rose
