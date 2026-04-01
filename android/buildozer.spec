@@ -16,6 +16,7 @@ android.minapi      = 26
 android.ndk         = 25b
 android.archs       = arm64-v8a, armeabi-v7a
 orientation         = portrait
+fullscreen          = 0
 
 # Gradle
 android.gradle_dependencies = com.android.support:support-v4:28.0.0

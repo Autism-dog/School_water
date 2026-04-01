@@ -115,13 +115,7 @@ if SYMBOL_FONT:
 
 import re as _re
 
-# Decorative symbols (Dingbats & Misc Symbols) that need SymbolFont (✦✧✿❀♡ etc.)
-# These are in the U+2600-U+27BF range and are NOT color emoji
-_SYMBOL_RE = _re.compile(
-    r'([\u2600-\u27BF]+)'
-)
-
-# Color emoji (excludes the Dingbats range to avoid overlap with _SYMBOL_RE)
+# Color emoji: Misc Symbols & Pictographs, Emoticons, Misc Technical (⏳), Misc Arrows
 _EMOJI_RE = _re.compile(
     r'([\U0001F300-\U0001FAFF'   # Misc Symbols & Pictographs, Emoticons, etc.
     r'\U00002300-\U000023FF'     # Misc Technical (⏳ etc.)
@@ -131,21 +125,16 @@ _EMOJI_RE = _re.compile(
 
 
 def _me(text: str) -> str:
-    """Wrap emoji and symbol codepoints in appropriate Kivy font markup.
+    """Wrap emoji codepoints in [font=EmojiFont] Kivy markup.
 
-    First wraps decorative symbols (✦✧✿❀♡) in [font=SymbolFont],
-    then wraps emoji in [font=EmojiFont].
-    Returns the text unchanged if fonts are not available.
+    Returns the text unchanged if EmojiFont is not available.
     Callers must set markup=True on the widget.
+    Note: decorative symbols (★✿❀♡) are left for the main font to render
+    directly; this avoids baseline-mismatch artefacts from inline font switches.
     """
-    result = text
-    # Apply SymbolFont for decorative symbols (must come first to avoid conflicts)
-    if SYMBOL_FONT:
-        result = _SYMBOL_RE.sub(r'[font=SymbolFont]\1[/font]', result)
-    # Apply EmojiFont for color emoji
     if EMOJI_FONT:
-        result = _EMOJI_RE.sub(r'[font=EmojiFont]\1[/font]', result)
-    return result
+        return _EMOJI_RE.sub(r'[font=EmojiFont]\1[/font]', text)
+    return text
 
 
 def _mesc(text: str) -> str:
@@ -170,7 +159,7 @@ TEXT_MUTED   = (0.671, 0.463, 0.549, 1)   # muted rose text
 
 # ── Kawaii / anime decorative strings ──
 DECO_SAKURA  = "✿ ❀ ✿ ❀ ✿ ❀ ✿ ❀ ✿"
-DECO_STARS   = "✦ ✧ ✦ ✧ ✦ ✧ ✦"
+DECO_STARS   = "★ · ★ · ★ · ★"
 HEADER_DECO  = "♡ 少女热水器 ♡"
 WATER_EMOJI  = "💧"
 SCAN_EMOJI   = "🔍"
@@ -590,7 +579,7 @@ class DeviceButton(Button):
         self._d_shadow.size = self.size
         self._d_rect.pos    = self.pos
         self._d_rect.size   = self.size
-        self.text_size      = (self.width - 36, None)
+        self.text_size      = (self.width - 36, self.height)
 
 
 def _deco_label(text, font_size="13sp", color=None):
@@ -645,7 +634,7 @@ class WaterApp(App):
             halign="center", markup=True,
         ))
         header.add_widget(Label(
-            text=_me("kawaii water control  ✦  少女风"),
+            text=_me("kawaii water control  ✨  少女风"),
             font_size="12sp", color=(1, 1, 1, 0.80),
             font_name=APP_FONT, size_hint_y=None, height=26,
             halign="center", markup=True,
@@ -658,23 +647,23 @@ class WaterApp(App):
         # ── Status Card ──────────────────────────────────────────────────────
         status_card = Card(
             bg_color=PINK_LIGHT, radius=18,
-            orientation="vertical", padding=(18, 10), spacing=4,
-            size_hint_y=None, height=84,
+            orientation="vertical", padding=(18, 8), spacing=4,
+            size_hint_y=None, height=96,
         )
         self._device_label = Label(
             text=_me(f"{WIFI_EMOJI}  未连接设备"),
             font_size="16sp", bold=True, color=TEXT_DARK,
             font_name=APP_FONT, halign="left", valign="middle",
-            size_hint_y=None, height=40, markup=True,
+            size_hint_y=None, height=44, markup=True,
         )
-        self._device_label.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
+        self._device_label.bind(size=lambda w, s: setattr(w, "text_size", (s[0], s[1])))
         self._status_label = Label(
             text=_me(f"{WAIT_EMOJI}  等待连接中..."),
             font_size="13sp", color=PINK_DEEP,
             font_name=APP_FONT, halign="left", valign="middle",
-            size_hint_y=None, height=30, markup=True,
+            size_hint_y=None, height=36, markup=True,
         )
-        self._status_label.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
+        self._status_label.bind(size=lambda w, s: setattr(w, "text_size", (s[0], s[1])))
         status_card.add_widget(self._device_label)
         status_card.add_widget(self._status_label)
         root.add_widget(status_card)
