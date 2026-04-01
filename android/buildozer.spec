@@ -3,7 +3,7 @@ title           = School Water
 package.name    = schoolwater
 package.domain  = org.schoolwater
 source.dir      = .
-source.include_exts = py,png,jpg,kv,atlas,wasm
+source.include_exts = py,png,jpg,kv,atlas,wasm,ttf,otf
 version         = 1.0.0
 
 requirements = python3,kivy==2.3.0,pytz,pyjnius
@@ -15,6 +15,8 @@ android.api         = 34
 android.minapi      = 26
 android.ndk         = 25b
 android.archs       = arm64-v8a, armeabi-v7a
+orientation         = portrait
+fullscreen          = 0
 
 # Gradle
 android.gradle_dependencies = com.android.support:support-v4:28.0.0

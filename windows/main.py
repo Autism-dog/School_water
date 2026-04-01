@@ -1,5 +1,5 @@
 """
-Windows native EXE — PyQt6 UI + bleak (WinRT) for water dispenser control.
+Windows native EXE — PyQt6 UI + bleak (WinRT) for school hot water control (shower system).
 
 Build with PyInstaller:
     pyinstaller windows/main.spec
@@ -222,7 +222,7 @@ class DevicePickerDialog(QDialog):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("💧 校园饮水机控制器")
+        self.setWindowTitle("💧 校园热水控制系统")
         self.setFixedSize(420, 480)
         self._ble_worker: BLEWorker | None = None
         self._scan_thread: ScanThread | None = None
@@ -238,7 +238,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(40, 30, 40, 30)
 
         # Title
-        title = QLabel("🌸💧 校园饮水机控制器 💧🌸")
+        title = QLabel("🌸💧 校园热水控制系统 💧🌸")
         title.setObjectName("title")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
@@ -365,7 +365,7 @@ class MainWindow(QMainWindow):
         box = QMessageBox(self)
         box.setWindowTitle("🌸 关于")
         box.setText(
-            "校园饮水机蓝牙控制器\n\n"
+            "校园热水蓝牙控制器（洗澡用）\n\n"
             "基于 celesWuff/waterctl 协议\n"
             "♡ 少女风格主题 ♡\n\n"
             "Windows 原生客户端（PyQt6 + bleak）"
